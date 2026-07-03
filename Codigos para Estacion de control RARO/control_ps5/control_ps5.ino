@@ -74,7 +74,7 @@ void accionesDualSense(ControllerPtr ctl) {
 // SETUP
 // ============================================================
 void setup() {
-  Serial.begin(115200);
+ Serial.begin(115200);
   delay(1000);
 
   pinMode(LED_DESCONECTADO, OUTPUT);
@@ -101,7 +101,7 @@ void loop() {
   bool conectado = false;
 
   if (myController != nullptr && myController->isConnected()) {
-    conectado = true;
+conectado = true;
   }
 
   if (conectado) {
@@ -150,7 +150,7 @@ void loop() {
     Serial.println("0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0");
   }
 
-  delay(200);
+  delay(200); 
 }
 /*
 Para las luces blancas de abajo del DualSense:

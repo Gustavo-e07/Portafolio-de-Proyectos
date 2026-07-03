@@ -11,8 +11,6 @@
 #define GPS_RX 26
 #define GPS_TX 25
 
-#define GPS_BAUD 9600
-
 TinyGPSPlus gps;
 HardwareSerial GPSserial(2);
 
@@ -28,7 +26,7 @@ void setup() {
   Serial.println("TX ESP32: GPIO 25");
   Serial.println("================================");
 
-  GPSserial.begin(GPS_BAUD, SERIAL_8N1, GPS_RX, GPS_TX);
+  GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
 
   Serial.println("Esperando datos NMEA del GPS...");
 }
@@ -38,7 +36,7 @@ void loop() {
     char c = GPSserial.read();
 
     // Descomenta esta línea si quieres ver los datos crudos NMEA:
-    Serial.write(c);
+    //Serial.write(c);
 
     gps.encode(c);
   }

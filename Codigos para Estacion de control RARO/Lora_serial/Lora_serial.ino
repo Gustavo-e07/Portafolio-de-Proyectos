@@ -8,7 +8,7 @@
 #define RS485_RX 27   // TXD del convertidor -> RX ESP32
 #define RS485_TX 14   // TX ESP32 -> RXD del convertidor
 
-HardwareSerial RT88H01(2);
+//HardwareSerial RT88H01(2);
 
 float latitud = 25.543210;
 float longitud = -99.123456;

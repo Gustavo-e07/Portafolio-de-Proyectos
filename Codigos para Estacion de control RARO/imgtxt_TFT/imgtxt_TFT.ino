@@ -20,54 +20,6 @@ TFT_eSPI tft = TFT_eSPI();
 // ============================================================
 const char* imagenFondo = "/Menu estacion de control.jpg";
 
-// ============================================================
-// SETUP
-// ============================================================
-void setup() {
-  Serial.begin(115200);
-  delay(500);
-
-  // Evita conflictos en el bus SPI
-  pinMode(TOUCH_CS, OUTPUT);
-  pinMode(TFT_CS, OUTPUT);
-  pinMode(SD_CS, OUTPUT);
-
-  digitalWrite(TOUCH_CS, HIGH);
-  digitalWrite(TFT_CS, HIGH);
-  digitalWrite(SD_CS, HIGH);
-
-  // Inicializar pantalla
-  tft.begin();
-  tft.setRotation(1);   // 0 = vertical 240x320 normalmente
-  tft.fillScreen(TFT_BLACK);
-
-  Serial.println("Inicializando SD...");
-
-  // Inicializar SD usando la misma instancia SPI de TFT_eSPI
-  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
-    Serial.println("Error: no se pudo montar la SD");
-    tft.setTextColor(TFT_RED, TFT_BLACK);
-    tft.setTextSize(2);
-    tft.setCursor(10, 10);
-    tft.println("SD ERROR");
-    return;
-  }
-
-  Serial.println("SD detectada correctamente");
-
-  // Mostrar imagen de fondo
-  mostrarFondo();
-
-  // Escribir texto encima
-  //escribirTexto();
-}
-
-// ============================================================
-// LOOP
-// ============================================================
-void loop() {
-  // Aquí puedes actualizar texto si quieres
-}
 
 // ============================================================
 // MOSTRAR IMAGEN DE FONDO
@@ -218,4 +170,52 @@ void jpegRender(int xpos, int ypos) {
 
 }
 
+// ============================================================
+// SETUP
+// ============================================================
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+
+  // Evita conflictos en el bus SPI
+ pinMode(TOUCH_CS, OUTPUT);
+  pinMode(TFT_CS, OUTPUT);
+  pinMode(SD_CS, OUTPUT);
+
+   digitalWrite(TOUCH_CS, HIGH);
+  digitalWrite(TFT_CS, HIGH);
+    digitalWrite(SD_CS, HIGH);
+
+  // Inicializar pantalla
+  tft.begin();
+ tft.setRotation(1);   // 0 = vertical 240x320 normalmente
+  tft.fillScreen(TFT_BLACK);
+
+  //Serial.println("Inicializando SD...");
+ 
+  // Inicializar SD usando la misma instancia SPI de TFT_eSPI
+  if (!SD.begin(SD_CS, tft.getSPIinstance())) {
+    Serial.println("Error: no se pudo montar la SD");
+    tft.setTextColor(TFT_RED, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.setCursor(10, 10);
+    tft.println("SD ERROR");
+    return;
+  }
+
+  Serial.println("SD detectada correctamente");
+
+  // Mostrar imagen de fondo
+  mostrarFondo();
+
+  // Escribir texto encima
+  escribirTexto();
+}
+
+// ============================================================
+// LOOP
+// ============================================================
+void loop() {
+  // Aquí puedes actualizar texto si quieres
+}
 
