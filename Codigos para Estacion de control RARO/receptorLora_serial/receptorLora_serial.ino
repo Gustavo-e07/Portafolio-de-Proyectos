@@ -8,18 +8,18 @@
 #define RS485_RX 16   // TXD del convertidor -> RX ESP32
 #define RS485_TX 17   // TX ESP32 -> RXD del convertidor
 
-//HardwareSerial RT88H01(2);
+HardwareSerial RT88H01(2);
 
-//String buffer = "";
+String buffer = "";
 
 void setup() {
- // Serial.begin(115200);
- // delay(1000);
+  Serial.begin(115200);
+  delay(1000);
 
-  //RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
+  RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
 
- // Serial.println("Receptor RT88H01 listo");
- // Serial.println("Esperando datos...");
+  Serial.println("Receptor RT88H01 listo");
+  Serial.println("Esperando datos...");
 }
 
 void loop() {
