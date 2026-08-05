@@ -15,8 +15,8 @@
 // PINES
 // ============================================================
 // Pantalla TFT
-#define SD_CS    5
-#define TFT_CS   15
+#define SD_CS 5
+#define TFT_CS 15
 #define TOUCH_CS 21
 
 // LEDs Indicadores
@@ -31,29 +31,29 @@
 
 //Modulo LoRa
 #define RS485_RX 27
-#define RS485_TX 14  
+#define RS485_TX 14
 
 // ============================================================
 // CONFIGURACIÓN GENERAL
 // ============================================================
-  // Pantalla TFT
-  const char* imagenFondo = "/Menu estacion de control.jpg";
-  TFT_eSPI tft = TFT_eSPI();
+// Pantalla TFT
+const char *imagenFondo = "/Menu estacion de control.jpg";
+TFT_eSPI tft = TFT_eSPI();
 
-  //Control bluetooth
-  ControllerPtr myController = nullptr;
+//Control bluetooth
+ControllerPtr myController = nullptr;
 
-  //Modulo GPS
-  TinyGPSPlus gps;
-  HardwareSerial GPSserial(2);
+//Modulo GPS
+TinyGPSPlus gps;
+HardwareSerial GPSserial(2);
 
-  //Modulo Lora
-  HardwareSerial RT88H01(1);
-  
-  //Otros
-  unsigned long contador = 0;
-  unsigned long tiempoAnterior = 0;
- 
+//Modulo Lora
+HardwareSerial RT88H01(1);
+
+//Otros
+unsigned long contador = 0;
+unsigned long tiempoAnterior = 0;
+
 
 // ============================================================
 // FUNCIONES
@@ -70,7 +70,7 @@ void mostrarFondo() {
 void escribirTexto() {
   // Fondo transparente para el texto
   tft.setTextDatum(TL_DATUM);
-  tft.setTextColor(TFT_WHITE); 
+  tft.setTextColor(TFT_WHITE);
   tft.setTextSize(2);
 
   tft.setCursor(15, 20);
@@ -189,14 +189,12 @@ void jpegRender(int xpos, int ypos) {
 
     if ((mcu_x + win_w) <= tft.width() && (mcu_y + win_h) <= tft.height()) {
       tft.pushImage(mcu_x, mcu_y, win_w, win_h, pImg);
-    } 
-    else if ((mcu_y + win_h) >= tft.height()) {
+    } else if ((mcu_y + win_h) >= tft.height()) {
       JpegDec.abort();
     }
   }
 
   tft.setSwapBytes(swapBytes);
-
 }
 
 // CALLBACK: CONTROL CONECTADO
@@ -233,10 +231,10 @@ void accionesDualSense(ControllerPtr ctl) {
   // Boton Y: vibracion
   if (ctl->y()) {
     ctl->playDualRumble(
-      0,      // retardo en ms
-      300,    // duracion en ms
-      0x80,   // motor suave
-      0x80    // motor fuerte
+      0,     // retardo en ms
+      300,   // duracion en ms
+      0x80,  // motor suave
+      0x80   // motor fuerte
     );
   }
 
@@ -289,7 +287,7 @@ void setup() {
   // **************************************************
   GPSserial.begin(9600, SERIAL_8N1, GPS_RX, GPS_TX);
   RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
-  
+
   // **************************************************
   // Ajuste de Pines
   // **************************************************
@@ -320,9 +318,9 @@ void setup() {
 
   // Inicializar pantalla
   tft.begin();
-  tft.setRotation(1);   // 0 = vertical 240x320 normalmente
+  tft.setRotation(1);  // 0 = vertical 240x320 normalmente
   tft.fillScreen(TFT_BLACK);
- 
+
   // Inicializar SD usando la misma instancia SPI de TFT_eSPI
   if (!SD.begin(SD_CS, tft.getSPIinstance())) {
     Serial.println("Error: no se pudo montar la SD");
@@ -343,6 +341,11 @@ void setup() {
 
   //Codigo de control
   BP32.setup(&onConnectedController, &onDisconnectedController);
+
+  // No lo actives siempre, porque borra el emparejamiento Bluetooth.
+  // Solo úsalo si quieres resetear los controles vinculados.
+  //BP32.forgetBluetoothKeys();
+
   BP32.enableVirtualDevice(false);
 }
 
@@ -458,8 +461,6 @@ void loop() {
     // ============================================================
     String mensaje = "";
 
-    mensaje += "RARO";
-    mensaje += ",";
     mensaje += String(contador);
     mensaje += ",";
     mensaje += String(controlConectado);
@@ -498,9 +499,9 @@ void loop() {
     mensaje += ",";
     mensaje += longitud;
     mensaje += ",";
-    mensaje += satelites;
-    mensaje += ",";
     mensaje += altitud;
+    mensaje += ",";
+    mensaje += satelites;
     mensaje += ",";
     mensaje += velocidadGPS;
 
@@ -515,5 +516,3 @@ void loop() {
 
   delay(5);
 }
-
-
