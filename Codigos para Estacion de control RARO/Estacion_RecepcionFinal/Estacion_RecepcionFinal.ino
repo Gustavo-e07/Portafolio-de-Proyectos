@@ -15,20 +15,17 @@
 //============================================================
 
 //Pines de LoRa
-#define RS485_RX 37   // TXD del convertidor -> RX ESP32
-#define RS485_TX 38   // TX ESP32 -> RXD del convertidor
+#define RS485_RX 13   // TXD del convertidor -> RX ESP32
+#define RS485_TX 14   // TX ESP32 -> RXD del convertidor
 
 //Pines de Sensor NPK
 #define NPK_RX 2   // TXD del sensor -> RX ESP32
 #define NPK_TX 1   // TX ESP32 -> RXD del sensor
 
-//Pines de Amperimetro
+//Pines de Amperimetro y lcd
 #define I2C_SDA 6
 #define I2C_SCL 7
 
-//Pines de LCD
-#define LCD_SDA 21
-#define LCD_SCL 20
 // Dirección I2C típica para pantallas OLED grandes (puede ser 0x3C o 0x3D)
 #define SCREEN_ADDRESS 0x3C 
 #define SCREEN_WIDTH 128
@@ -39,7 +36,7 @@
 #define MotorL 10
 
 
-#define Led_NPKRead 3
+#define Led_NPKRead 4
 
 #define Led_LoRaConect 8
 #define Led_LoRaunDesconect 18
@@ -160,7 +157,6 @@ void leerPromedioNPK() {
   potasioProm     = sumaK / 30.0;
   salinidadProm   = sumaSal / 30.0;
 }
-
 
 void procesarMensajeLora(String mensaje) {
   String datos[22];
