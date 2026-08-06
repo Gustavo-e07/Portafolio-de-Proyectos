@@ -52,7 +52,7 @@
 ModbusMaster node; // Create Modbus object
 
 //LoRa
-HardwareSerial RT88H01(2);
+HardwareSerial RT88H01(0);
 
 //Amperimetro
 Adafruit_INA219 ina219;
@@ -328,48 +328,54 @@ void procesarMensajeSerial(String mensaje) {
 
 
 void setup() {
-    //seria;
   Serial.begin(115200);
-  delay(1000);
+  delay(3000);
 
-  //Pines de salida
+  Serial.println();
+  Serial.println("================================");
+  Serial.println("INICIO ESP32-S3 N16R8");
+  Serial.println("================================");
+
+  Serial.println("1. Configurando LEDs");
+
   pinMode(Led_NPKRead, OUTPUT);
   pinMode(Led_LoRaConect, OUTPUT);
   pinMode(Led_LoRaunDesconect, OUTPUT);
   pinMode(Led_Aut, OUTPUT);
   pinMode(Led_Man, OUTPUT);
 
-    //Inicializamos los pines de salida
-    digitalWrite(Led_NPKRead, LOW);
-    digitalWrite(Led_LoRaConect, Conexion);
-    digitalWrite(Led_LoRaunDesconect, !Conexion);
-    digitalWrite(Led_Aut, Modo);
-    digitalWrite(Led_Man, !Modo);
+  digitalWrite(Led_NPKRead, LOW);
+  digitalWrite(Led_LoRaConect, LOW);
+  digitalWrite(Led_LoRaunDesconect, HIGH);
+  digitalWrite(Led_Aut, LOW);
+  digitalWrite(Led_Man, HIGH);
 
-    //LoRa
+  Serial.println("2. LEDs configurados");
+
+  Serial.println("3. Iniciando LoRa");
   RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
-    
-  //NPK
-    Serial2.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);   
-    node.begin(1, Serial2);    // ID del sensor
+  Serial.println("4. LoRa iniciado");
 
-    /*
-    // Inicia la comunicación I2C y la pantalla
-    if(!display.begin(SCREEN_ADDRESS, true)) {     
-        Serial.println(F("No se encontro la pantalla OLED"));
-        for(;;); // Detiene el programa si falla
-    }
-    display.clearDisplay(); // Limpia el buffer de la pantalla
-    */
+  Serial.println("5. Iniciando NPK");
+  Serial2.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);
+  node.begin(1, Serial2);
+  Serial.println("6. NPK iniciado");
 
-    // El ESP32-S3 reasigna el hardware I2C a los pines asignados aquí:
-    Wire.begin(I2C_SDA, I2C_SCL);
+  Serial.println("7. Iniciando I2C");
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Serial.println("8. I2C iniciado");
 
-    if (!ina219.begin(&Wire)) {
-        Serial.println("No se encuentra el modulo INA219. ¡Revisa pines y conexiones!");
-        while (1) { delay(10); }
-    }
-  
+  Serial.println("9. Buscando INA219");
+
+  if (!ina219.begin(&Wire)) {
+    Serial.println("ADVERTENCIA: INA219 no encontrado");
+  } else {
+    Serial.println("10. INA219 encontrado");
+  }
+
+  Serial.println("================================");
+  Serial.println("SETUP TERMINADO");
+  Serial.println("================================");
 }
 
 void loop() {
@@ -397,6 +403,5 @@ void loop() {
       buffer += c;
     }
   }
-  Modo = 0;
-  
+ 
 }
