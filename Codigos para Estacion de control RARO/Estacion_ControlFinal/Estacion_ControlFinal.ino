@@ -381,7 +381,7 @@ void loop() {
   // ============================================================
   if (millis() - tiempoAnterior >= 200) {
     tiempoAnterior = millis();
-    contador++;
+    //contador++;
 
     // ============================================================
     // VARIABLES DEL CONTROL
@@ -459,7 +459,7 @@ void loop() {
     // ============================================================
     // ARMAR MENSAJE CSV
     // ============================================================
-    String mensaje = "";
+    String mensaje;
 
     mensaje += String(contador);
     mensaje += ",";
