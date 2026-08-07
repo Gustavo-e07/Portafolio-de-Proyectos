@@ -214,9 +214,6 @@ void procesarMensajeLora(String mensaje) {
   }
   prevMiscBit = miscBit;
 
-  digitalWrite(Led_Aut, Modo);
-  digitalWrite(Led_Man, !Modo);
-
   String MensajeToLoRa =
     String(Contador) + "," +
     String(Conexion) + "," +
@@ -229,6 +226,8 @@ void procesarMensajeLora(String mensaje) {
 
   if (Modo == 1) {
     // Modo Autonomo
+    digitalWrite(Led_Aut, Modo);
+    digitalWrite(Led_Man, !Modo);
     // Leer una línea del puerto serial principal y procesarla
     String MensajeSerial = "";
     while (Serial.available()) {
@@ -251,6 +250,7 @@ void procesarMensajeLora(String mensaje) {
     }
     // Aquí puedes agregar el código adicional para el modo autónomo
   } else {
+
     // Modo Manual
     if(misc == 2)
     // Aquí puedes agregar el código para el modo manual
@@ -331,12 +331,12 @@ void setup() {
   Serial.begin(115200);
   delay(3000);
 
-  Serial.println();
-  Serial.println("================================");
-  Serial.println("INICIO ESP32-S3 N16R8");
-  Serial.println("================================");
+  //Serial.println();
+  //Serial.println("================================");
+ // Serial.println("INICIO ESP32-S3 N16R8");
+ // Serial.println("================================");
 
-  Serial.println("1. Configurando LEDs");
+ // Serial.println("1. Configurando LEDs");
 
   pinMode(Led_NPKRead, OUTPUT);
   pinMode(Led_LoRaConect, OUTPUT);
@@ -350,32 +350,32 @@ void setup() {
   digitalWrite(Led_Aut, LOW);
   digitalWrite(Led_Man, HIGH);
 
-  Serial.println("2. LEDs configurados");
+ // Serial.println("2. LEDs configurados");
 
-  Serial.println("3. Iniciando LoRa");
+ // Serial.println("3. Iniciando LoRa");
   RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
-  Serial.println("4. LoRa iniciado");
+ // Serial.println("4. LoRa iniciado");
 
-  Serial.println("5. Iniciando NPK");
+  //Serial.println("5. Iniciando NPK");
   Serial2.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);
   node.begin(1, Serial2);
-  Serial.println("6. NPK iniciado");
+  //Serial.println("6. NPK iniciado");
 
   Serial.println("7. Iniciando I2C");
   Wire.begin(I2C_SDA, I2C_SCL);
   Serial.println("8. I2C iniciado");
 
-  Serial.println("9. Buscando INA219");
+ // Serial.println("9. Buscando INA219");
 
   if (!ina219.begin(&Wire)) {
-    Serial.println("ADVERTENCIA: INA219 no encontrado");
+   // Serial.println("ADVERTENCIA: INA219 no encontrado");
   } else {
-    Serial.println("10. INA219 encontrado");
+   // Serial.println("10. INA219 encontrado");
   }
 
-  Serial.println("================================");
-  Serial.println("SETUP TERMINADO");
-  Serial.println("================================");
+ // Serial.println("================================");
+ // Serial.println("SETUP TERMINADO");
+ // Serial.println("================================");
 }
 
 void loop() {

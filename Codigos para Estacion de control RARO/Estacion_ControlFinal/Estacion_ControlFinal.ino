@@ -379,7 +379,7 @@ void loop() {
   // ============================================================
   // ENVIAR DATOS CADA 1 SEGUNDO
   // ============================================================
-  if (millis() - tiempoAnterior >= 200) {
+  if (millis() - tiempoAnterior >= 300) {
     tiempoAnterior = millis();
     //contador++;
 
