@@ -381,7 +381,7 @@ void loop() {
   // ============================================================
   if (millis() - tiempoAnterior >= 300) {
     tiempoAnterior = millis();
-    //contador++;
+    contador++;
 
     // ============================================================
     // VARIABLES DEL CONTROL
@@ -461,6 +461,7 @@ void loop() {
     // ============================================================
     String mensaje;
 
+    mensaje += "EstacionControl,";
     mensaje += String(contador);
     mensaje += ",";
     mensaje += String(controlConectado);
