@@ -90,11 +90,11 @@ bool frameActivo = false;
   float AmpProm = 0.0;
 
   //NPK Sumas
-  float sumHum=0;
-  float SumTemp=0;
-  float sumEc = 0;
-  float sumPH = 0;
-  float sumN = 0 ;
+  float sumaHum=0;
+  float sumaTemp=0;
+  float sumaEC = 0;
+  float sumaPH = 0;
+  float sumaN = 0 ;
   float sumaP = 0;
   float sumaK = 0;
   float sumaSal = 0;
@@ -176,10 +176,6 @@ void setup() {
 
     actualizarLEDs();
     detenerMotores();
-
-  // Motores detenidos
-    MotorIzq.writeMicroseconds(1500);
-    MotorDer.writeMicroseconds(1500);
 
   // Inicializar LoRa (UART1)
     RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
@@ -314,7 +310,7 @@ void procesarMensajeLora(String mensaje) {
     ultimoComandoLoRa = millis();
 
     // Enclavamiento (Toggle) para cambiar de modo al presionar el botón 'misc'
-    int currentMiscBit = (misc == 1) ? 1 : 0;
+    int currentMiscBit = (misc > 0 ) ? 1 : 0;
     if (currentMiscBit == 1 && prevMiscBit == 0) {
         Modo = (Modo == 0) ? 1 : 0;
         Serial.print("CAMBIO DE MODO A: ");
@@ -385,8 +381,15 @@ void iniciarLecturaNPK() {
     solicitandoNPK = true;
     Sensor_Estado = 1;
     lecturasValidasNPK = 0;
-    sumaHum = 0; sumaTemp = 0; sumaEC = 0; sumaPH = 0;
-    sumaN = 0; sumaP = 0; sumaK = 0; sumaSal = 0; sumaTDS = 0;
+    sumaHum = 0; 
+    sumaTemp = 0; 
+    sumaEC = 0; 
+    sumaPH = 0;
+    sumaN = 0; 
+    sumaP = 0; 
+    sumaK = 0; 
+    sumaSal = 0; 
+    sumaTDS = 0;
     ultimoMuestreoNPK = millis();
 }
 
@@ -420,7 +423,15 @@ void atenderNPK() {
             potasioProm     = sumaK / 30.0;
             salinidadProm   = sumaSal / 30.0;
             tdsProm         = sumaTDS / 30.0;
-
+           Serial.print("Hum: "); Serial.print(humedadProm); Serial.print("% | ");
+Serial.print("Temp: "); Serial.print(temperaturaProm); Serial.print("C | ");
+Serial.print("EC: "); Serial.print(ecProm); Serial.print(" | ");
+Serial.print("pH: "); Serial.print(phProm); Serial.print(" | ");
+Serial.print("N: "); Serial.print(nitrogenoProm); Serial.print(" | ");
+Serial.print("P: "); Serial.print(fosforoProm); Serial.print(" | ");
+Serial.print("K: "); Serial.print(potasioProm); Serial.print(" | ");
+Serial.print("Sal: "); Serial.print(salinidadProm); Serial.print(" | ");
+Serial.print("TDS: "); Serial.println(tdsProm);
             Sensor_Estado = 0;
             solicitandoNPK = false;
         }
