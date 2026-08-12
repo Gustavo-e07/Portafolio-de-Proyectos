@@ -156,6 +156,19 @@ int prevMiscBit = 0;
 
   int realizarMedicion = 0;
 
+// ============================================================
+// PROTOTIPOS
+// ============================================================
+void actualizarPulsosRC();
+void leerLoRa();
+void procesarMensajeLora(String mensaje);
+void controlarSabertooth(int rx, int ry);
+void detenerMotores();
+void actualizarLEDs();
+void iniciarLecturaNPK();
+void atenderNPK();
+void EnviarMensajes();
+
 
 void setup() {
   Serial.begin(115200);
