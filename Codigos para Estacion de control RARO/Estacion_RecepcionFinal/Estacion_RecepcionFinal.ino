@@ -9,7 +9,6 @@
 #include <Adafruit_SH110X.h>
 #include <ModbusMaster.h>
 
-
 //============================================================
 //Declaracion de pines
 //============================================================
@@ -19,389 +18,412 @@
 #define RS485_TX 14   // TX ESP32 -> RXD del convertidor
 
 //Pines de Sensor NPK
-#define NPK_RX 2   // TXD del sensor -> RX ESP32
-#define NPK_TX 1   // TX ESP32 -> RXD del sensor
+#define NPK_RX 18   // TXD del sensor -> RX ESP32
+#define NPK_TX 17   // TX ESP32 -> RXD del sensor
 
 //Pines de Amperimetro y lcd
 #define I2C_SDA 6
 #define I2C_SCL 7
 
-// Dirección I2C típica para pantallas OLED grandes (puede ser 0x3C o 0x3D)
-#define SCREEN_ADDRESS 0x3C 
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+// Pines Sabertooth (PPM / Servo Signal)
+#define SABERTOOTH_LEFT_PIN  10   // S1
+#define SABERTOOTH_RIGHT_PIN 11   // S2
 
-//Pines a los motores
-#define MotorR 11
-#define MotorL 10
+// Indicadores LED
+#define Led_NPKRead          4
 
+#define Led_LoRaConect       5
+#define Led_LoRaunDesconect  8
 
-#define Led_NPKRead 4
-
-#define Led_LoRaConect 8
-#define Led_LoRaunDesconect 18
-
-#define Led_Aut 17
-#define Led_Man 16
+#define Led_Aut              9
+#define Led_Man              12
 
 
 //============================================================
-//Decalracion de dispositivos
+//Objetos y perifericos
 //============================================================
-//NPK
-ModbusMaster node; // Create Modbus object
+HardwareSerial RT88H01(1);//UART1 LoRa
 
-//LoRa
-HardwareSerial RT88H01(0);
+HardwareSerial SerialNPK(2); //UART2 NPK 
+ModbusMaster node;
 
 //Amperimetro
 Adafruit_INA219 ina219;
 
-// Pantalla OLED SH1106
-Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+// ============================================================
+// CONSTANTES DE CONTROL RC Y JOYSTICK
+// ============================================================
+const int VALOR_MIN_CONTROL = -512;
+const int VALOR_MAX_CONTROL = 512;
+const int ZONA_MUERTA       = 50;
 
-//LCD
+const int PULSO_REVERSA = 1000; // us
+const int PULSO_NEUTRO  = 1500; // us
+const int PULSO_AVANCE  = 2000; // us
+
+const unsigned long PERIODO_RC_US   = 20000; // Periodo de 50Hz (20ms)
+const unsigned long TIMEOUT_LORA_MS = 3000;  // Timeout de seguridad
 
 
 //============================================================
 //Variables globales Inicializadas
 //============================================================
-String buffer = "";//inicializamos mensaje
+// Pulsos RC para Sabertooth
+volatile int pulsoIzquierdo = PULSO_NEUTRO;
+volatile int pulsoDerecho   = PULSO_NEUTRO;
+unsigned long inicioFrameRC = 0;
+bool frameActivo = false;
 
-// Estado global de modo y bit anterior de "misc" para detección de flanco
-int Modo = 0;
-int prevMiscBit = 0;
+//Lecturas locales
 
-//Variables LoRa recibidas
-int Contador;
-int Conexion =0;
+  //NPK Promedios
+  float humedadProm = 0;           
+  float temperaturaProm = 0;
+  float ecProm = 0;
+  float phProm = 0;
+  float nitrogenoProm = 0;
+  float fosforoProm = 0;
+  float potasioProm = 0;
+  float salinidadProm = 0;
+  float tdsProm = 0;
+  //Amperiometro
+  float AmpProm = 0.0;
 
-
-//Variables a enviar
-float Latitud=0;
-float Longitud=0;
-float Altitud=0;
-int NSatelites =0;
-float VelGPS =0;
-
-//NPK
-float humedadProm = 0;
-float temperaturaProm = 0;
-float ecProm = 0;
-float phProm = 0;
-float nitrogenoProm = 0;
-float fosforoProm = 0;
-float potasioProm = 0;
-float salinidadProm = 0;
-float tdsProm = 0;
-float AmpProm = 0.0;
-
-//seriales recibidos
-float tempRobot = 0.0;
-float EstacionX = 0;
-float EstacionY = 0;
-float EstacionZ = 0;
-float RobotX = 0;
-float RobotY = 0;
-float RobotZ = 0;
-float Roll = 0;
-float Pitch = 0;
-float Yaw = 0;
-int realizarMedicion = 0;
-
-
-//============================================================
-//Funciones
-//============================================================
-void leerPromedioNPK() {
-
-  float sumaHum = 0;
-  float sumaTemp = 0;
-  float sumaEC = 0;
-  float sumaPH = 0;
-  float sumaN = 0;
+  //NPK Sumas
+  float sumHum=0;
+  float SumTemp=0;
+  float sumEc = 0;
+  float sumPH = 0;
+  float sumN = 0 ;
   float sumaP = 0;
   float sumaK = 0;
   float sumaSal = 0;
+  float sumaTDS = 0;
 
-  int lecturasValidas = 0;
-
-  while (lecturasValidas < 30) {
-
-    // Lee 8 registros consecutivos
-    uint8_t result = node.readHoldingRegisters(0x0000, 8);
-
-    if (result == node.ku8MBSuccess) {
-
-      sumaHum  += node.getResponseBuffer(0) / 10.0;
-      sumaTemp += node.getResponseBuffer(1) / 10.0;
-      sumaEC   += node.getResponseBuffer(2);
-      sumaPH   += node.getResponseBuffer(3) / 10.0;
-      sumaN    += node.getResponseBuffer(4);
-      sumaP    += node.getResponseBuffer(5);
-      sumaK    += node.getResponseBuffer(6);
-      sumaSal  += node.getResponseBuffer(7);
-
-      lecturasValidas++;
-    }
-
-    delay(200);
-  }
-
-  humedadProm     = sumaHum / 30.0;
-  temperaturaProm = sumaTemp / 30.0;
-  ecProm          = sumaEC / 30.0;
-  phProm          = sumaPH / 30.0;
-  nitrogenoProm   = sumaN / 30.0;
-  fosforoProm     = sumaP / 30.0;
-  potasioProm     = sumaK / 30.0;
-  salinidadProm   = sumaSal / 30.0;
-}
-
-void procesarMensajeLora(String mensaje) {
-  String datos[22];
-
-  int indice = 0;
-  int inicio = 0;
-
-  for (int i = 0; i < mensaje.length(); i++) {
-    if (mensaje.charAt(i) == ',') {
-      datos[indice] = mensaje.substring(inicio, i);
-      inicio = i + 1;
-      indice++;
-
-      if (indice >= 22) {
-        break;
-      }
-    }
-  }
+  int lecturasValidasNPK = 0;
+  bool solicitandoNPK = false;
+  unsigned long ultimoMuestreoNPK = 0;
+  int Sensor_Estado = 0;
   
-  datos[indice] = mensaje.substring(inicio);
+  //VariablesLoRa
+  String bufferLoRa = "";
+  unsigned long ultimoComandoLoRa = 0;
 
-  Contador =datos[0].toInt();
-  Conexion = datos[1].toInt();
-  int a = datos[2].toInt();
-  int b = datos[3].toInt();
-  int x = datos[4].toInt();
-  int y = datos[5].toInt();
-  int L1 = datos[6].toInt();
-  int R1 = datos[7].toInt();
-  int dpad = datos[8].toInt();
-  int buttons = datos[9].toInt();
-  int misc = datos[10].toInt();
-  int Lx = datos[11].toInt();
-  int Ly = datos[12].toInt();
-  int Rx = datos[13].toInt();
-  int Ry = datos[14].toInt();
-  int L2 = datos[15].toInt();
-  int R2 = datos[16].toInt();
-  float Latitud = datos[17].toFloat();
-  float longitud = datos[18].toFloat();
-  float altitud = datos[19].toFloat();
-  int NSatelites = datos[20].toInt();
-  float VelGPS = datos[21].toFloat();
+  String McLoRa = "";
+  int Contador = 0;
+  int Conexion = 0;
+  int a = 0;
+  int b = 0;
+  int x = 0;
+  int y = 0;
+  int L1 = 0;
+  int R1 = 0;
+  int dpad = 0;
+  int buttons = 0; 
+  int misc = 0;
+  int Lx = 0;
+  int Ly = 0;
+  int Rx = 0;
+  int Ry = 0;
+  int L2 = 0;
+  int R2 = 0;
+  float latitud = 0; 
+  float longitud = 0;
+  float altitud = 0;
+  int NSatelites = 0;
+  float VelGPS = 0;
 
-  digitalWrite(Led_LoRaConect, Conexion);
-  digitalWrite(Led_LoRaunDesconect, !Conexion);
+//Logica de modo (o: Mabnual, 1: Autonomo);
+int Modo = 0;
+int prevMiscBit = 0;
 
-  // Toggle de `Modo` en el flanco ascendente del bit 0 de `misc`.
-  // Así, cuando `misc` pasa de 0->1 se invierte `Modo`; mientras tanto
-  // `Modo` permanece en su valor actual aún si `misc` baja a 0.
-  int miscBit = misc & 0x01;
-  if (miscBit && !prevMiscBit) {
-    // flanco ascendente: toggle
-    Modo = (Modo == 0) ? 1 : 0;
-  }
-  prevMiscBit = miscBit;
 
-  String MensajeToLoRa =
-    String(Contador) + "," +
-    String(Conexion) + "," +
-    String(Modo) + "," +
-    String(Roll) + "," +
-    String(Pitch) + "," +
-    String(Yaw);
+//Lectura serial recibida
+  float tempRobot = 0.0;
+  int NSatelitesRobot = 0;
 
-  RT88H01.println(MensajeToLoRa);
+  float EstacionX = 0;
+  float EstacionY = 0;
+  float EstacionZ = 0;
 
-  if (Modo == 1) {
-    // Modo Autonomo
-    digitalWrite(Led_Aut, Modo);
-    digitalWrite(Led_Man, !Modo);
-    // Leer una línea del puerto serial principal y procesarla
-    String MensajeSerial = "";
-    while (Serial.available()) {
-      char c = Serial.read();
-      if (c == '\n') {
-        break;
-      }
-      if (c != '\r') {
-        MensajeSerial += c;
-      }
-    }
+  float RobotX = 0;
+  float RobotY = 0;
+  float RobotZ = 0;
 
-    if (MensajeSerial.length() > 0) {
-      procesarMensajeSerial(MensajeSerial);
-    }
-    if (realizarMedicion == 1) {
-        leerPromedioNPK();
-      // Aquí puedes agregar el código para realizar la medición
-      // y actualizar las variables de NPK y amperímetro
-    }
-    // Aquí puedes agregar el código adicional para el modo autónomo
-  } else {
+  float Roll = 0;
+  float Pitch = 0;
+  float Yaw = 0;
 
-    // Modo Manual
-    if(misc == 2)
-    // Aquí puedes agregar el código para el modo manual
-    leerPromedioNPK();
-  }
-
-  String MensajeToSerial =
-    String(Contador) + "," +
-    String(Conexion) + "," +
-    String(Modo) + "," +
-
-    String(Lx) + "," +
-    String(Ly) + "," +
-    String(Rx) + "," +
-    String(Ry) + "," +
-
-    String(L2) + "," +
-    String(R2) + "," +
-
-    String(Latitud,6) + "," +
-    String(Longitud,6) + "," +
-    String(Altitud,2) + "," +
-    String(NSatelites) + "," +
-    String(VelGPS,2) + "," +
-
-    String(temperaturaProm,2) + "," +
-    String(humedadProm,2) + "," +
-    String(ecProm,2) + "," +
-    String(phProm,2) + "," +
-    String(nitrogenoProm,2) + "," +
-    String(fosforoProm,2) + "," +
-    String(potasioProm,2) + "," +
-    String(salinidadProm,2) + "," +
-    String(tdsProm,2) + "," +
-    String(AmpProm,2);
-
-  Serial.println(MensajeToSerial);
-
-}
-
-void procesarMensajeSerial(String mensaje) {
-  String datos[11];
-
-  int indice = 0;
-  int inicio = 0;
-
-  for (int i = 0; i < mensaje.length() && indice < 10; i++) {
-    if (mensaje.charAt(i) == ',') {
-      datos[indice] = mensaje.substring(inicio, i);
-      inicio = i + 1;
-      indice++;
-    }
-  }
-
-  datos[indice] = mensaje.substring(inicio);
-  indice++;
-
-  if (indice < 11) {
-    // Mensaje incompleto: no se actualiza el estado
-    return;
-  }
-
-  tempRobot = datos[0].toFloat();
-  EstacionX = datos[1].toFloat();
-  EstacionY = datos[2].toFloat();
-  EstacionZ = datos[3].toFloat();
-  RobotX = datos[4].toFloat();
-  RobotY = datos[5].toFloat();
-  RobotZ = datos[6].toFloat();
-  Roll = datos[7].toFloat();
-  Pitch = datos[8].toFloat();
-  Yaw = datos[9].toFloat();
-  realizarMedicion = datos[10].toInt();
-}
+  int realizarMedicion = 0;
 
 
 void setup() {
   Serial.begin(115200);
-  delay(3000);
+  delay(1000);
 
-  //Serial.println();
-  //Serial.println("================================");
- // Serial.println("INICIO ESP32-S3 N16R8");
- // Serial.println("================================");
+  // Configuración de Pines Sabertooth
+  pinMode(SABERTOOTH_LEFT_PIN, OUTPUT);
+  pinMode(SABERTOOTH_RIGHT_PIN, OUTPUT);
+  digitalWrite(SABERTOOTH_LEFT_PIN, LOW);
+  digitalWrite(SABERTOOTH_RIGHT_PIN, LOW);
 
- // Serial.println("1. Configurando LEDs");
-
+  // Configuración de LEDs
   pinMode(Led_NPKRead, OUTPUT);
   pinMode(Led_LoRaConect, OUTPUT);
   pinMode(Led_LoRaunDesconect, OUTPUT);
   pinMode(Led_Aut, OUTPUT);
   pinMode(Led_Man, OUTPUT);
 
-  digitalWrite(Led_NPKRead, LOW);
-  digitalWrite(Led_LoRaConect, LOW);
-  digitalWrite(Led_LoRaunDesconect, HIGH);
-  digitalWrite(Led_Aut, LOW);
-  digitalWrite(Led_Man, HIGH);
+    actualizarLEDs();
+    detenerMotores();
 
- // Serial.println("2. LEDs configurados");
+  // Motores detenidos
+    MotorIzq.writeMicroseconds(1500);
+    MotorDer.writeMicroseconds(1500);
 
- // Serial.println("3. Iniciando LoRa");
-  RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
- // Serial.println("4. LoRa iniciado");
+  // Inicializar LoRa (UART1)
+    RT88H01.begin(9600, SERIAL_8N1, RS485_RX, RS485_TX);
 
-  //Serial.println("5. Iniciando NPK");
-  Serial2.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);
-  node.begin(1, Serial2);
-  //Serial.println("6. NPK iniciado");
+    // Inicializar NPK Modbus (UART2)
+    SerialNPK.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);
+    delay(100);
+    node.begin(1, SerialNPK);
 
-  Serial.println("7. Iniciando I2C");
-  Wire.begin(I2C_SDA, I2C_SCL);
-  Serial.println("8. I2C iniciado");
+    // Inicializar I2C
+    Wire.begin(I2C_SDA, I2C_SCL);
+    ina219.begin(&Wire);
 
- // Serial.println("9. Buscando INA219");
+    // Tiempo de estabilización con señal Neutro enviada a Sabertooth
+    unsigned long inicio = millis();
+    while (millis() - inicio < 2000) {
+        actualizarPulsosRC();
+    }
 
-  if (!ina219.begin(&Wire)) {
-   // Serial.println("ADVERTENCIA: INA219 no encontrado");
-  } else {
-   // Serial.println("10. INA219 encontrado");
-  }
-
- // Serial.println("================================");
- // Serial.println("SETUP TERMINADO");
- // Serial.println("================================");
+    ultimoComandoLoRa = millis();
 }
 
 void loop() {
-   // display.clearDisplay();
+      // 1. Generador RC continuo (DEBE ejecutarse constantemente)
+    actualizarPulsosRC();
 
-  while (RT88H01.available()) {
-    
-    char c = RT88H01.read();
+    // 2. Procesar tramas LoRa
+    leerLoRa();
 
-    if (c == '\n') {
-      buffer.trim();
+    // 3. Procesar lectura de sensor Modbus de forma asíncrona
+    atenderNPK();
 
-      if (buffer.length() > 0) {
-        Serial.println("================================");
-        Serial.print("Recibido: ");
-        Serial.println(buffer);
-
-        procesarMensajeLora(buffer);    
-
-        Serial.println("================================");
-      }
-
-      buffer = "";
-    } else {
-      buffer += c;
+    // 4. Seguridad: Si se pierde la conexión LoRa, apagar motores
+    if (millis() - ultimoComandoLoRa > TIMEOUT_LORA_MS) {
+        Conexion = 0;
+        detenerMotores();
     }
-  }
+
+    // 5. Refrescar LEDs de estado
+    actualizarLEDs();
  
 }
+// ============================================================
+// GENERADOR RC NO BLOQUEANTE (50 Hz por Software)
+// ============================================================
+void actualizarPulsosRC() {
+    unsigned long ahora = micros();
+
+    // Iniciar nuevo pulso cada 20000 us (50Hz)
+    if (!frameActivo || (ahora - inicioFrameRC >= PERIODO_RC_US)) {
+        inicioFrameRC = ahora;
+        frameActivo = true;
+
+        digitalWrite(SABERTOOTH_LEFT_PIN, HIGH);
+        digitalWrite(SABERTOOTH_RIGHT_PIN, HIGH);
+    }
+
+    // Apagar pin izquierdo al cumplir su ancho de pulso
+    if ((ahora - inicioFrameRC) >= (unsigned long)pulsoIzquierdo) {
+        digitalWrite(SABERTOOTH_LEFT_PIN, LOW);
+    }
+
+    // Apagar pin derecho al cumplir su ancho de pulso
+    if ((ahora - inicioFrameRC) >= (unsigned long)pulsoDerecho) {
+        digitalWrite(SABERTOOTH_RIGHT_PIN, LOW);
+    }
+}
+
+// ============================================================
+// RECEPCIÓN LORA
+// ============================================================
+void leerLoRa() {
+    while (RT88H01.available()) {
+        char c = RT88H01.read();
+
+        if (c == '\n') {
+            bufferLoRa.trim();
+            if (bufferLoRa.length() > 0) {
+                procesarMensajeLora(bufferLoRa);
+            }
+            bufferLoRa = "";
+        } else {
+            bufferLoRa += c;
+            if (bufferLoRa.length() > 250) bufferLoRa = "";
+        }
+    }
+}
+
+// ============================================================
+// PROCESAR MENSAJE LORA Y ENCLAVAMIENTO DE MODO
+// ============================================================
+void procesarMensajeLora(String mensaje) {
+    String datos[23];
+    int indice = 0, inicio = 0;
+
+    for (int i = 0; i < mensaje.length(); i++) {
+        if (mensaje.charAt(i) == ',') {
+            datos[indice] = mensaje.substring(inicio, i);
+            inicio = i + 1;
+            indice++;
+            if (indice >= 23) break;
+        }
+    }
+    datos[indice] = mensaje.substring(inicio);
+
+    if (indice < 23) return; // Asegurar que recibimos la trama completa
+
+    McLoRa     = datos[0];
+    Contador   = datos[1].toInt();
+    Conexion   = datos[2].toInt();
+    a          = datos[3].toInt();
+    b          = datos[4].toInt();
+    x          = datos[5].toInt();
+    y          = datos[6].toInt();
+    L1         = datos[7].toInt();
+    R1         = datos[8].toInt();
+    dpad       = datos[9].toInt();
+    buttons    = datos[10].toInt();
+    misc       = datos[11].toInt();
+    Lx         = datos[12].toInt();
+    Ly         = datos[13].toInt();
+    Rx         = datos[14].toInt();
+    Ry         = datos[15].toInt();
+    L2         = datos[16].toInt();
+    R2         = datos[17].toInt();
+    latitud    = datos[18].toFloat();
+    longitud   = datos[19].toFloat();
+    altitud    = datos[20].toFloat();
+    NSatelites = datos[21].toInt();
+    VelGPS     = datos[22].toFloat();
+
+    ultimoComandoLoRa = millis();
+
+    // Enclavamiento (Toggle) para cambiar de modo al presionar el botón 'misc'
+    int currentMiscBit = (misc == 1) ? 1 : 0;
+    if (currentMiscBit == 1 && prevMiscBit == 0) {
+        Modo = (Modo == 0) ? 1 : 0;
+        Serial.print("CAMBIO DE MODO A: ");
+        Serial.println(Modo == 1 ? "AUTÓNOMO" : "MANUAL");
+    }
+    prevMiscBit = currentMiscBit;
+
+    // Control de Motores
+    if (Modo == 0) { // Modo Manual: Responde al Joystick
+        controlarSabertooth(Lx, Ly);
+    } else {         // Modo Autónomo: Neutraliza motores
+        detenerMotores();
+    }
+
+    if (misc==2){
+      iniciarLecturaNPK();
+      atenderNPK();
+    }
+}
+
+// ============================================================
+// CONTROL DIFERENCIAL MOTORES
+// ============================================================
+void controlarSabertooth(int rx, int ry) {
+    // Zona Muerta
+    if (abs(rx) < ZONA_MUERTA) rx = 0;
+    if (abs(ry) < ZONA_MUERTA) ry = 0;
+
+    rx = constrain(rx, VALOR_MIN_CONTROL, VALOR_MAX_CONTROL);
+    ry = constrain(ry, VALOR_MIN_CONTROL, VALOR_MAX_CONTROL);
+
+    int avance = ry;
+    int giro   = rx;
+
+    int vIzquierda = avance + giro;
+    int vDerecha   = avance - giro;
+
+    vIzquierda = constrain(vIzquierda, VALOR_MIN_CONTROL, VALOR_MAX_CONTROL);
+    vDerecha   = constrain(vDerecha,   VALOR_MIN_CONTROL, VALOR_MAX_CONTROL);
+
+    pulsoIzquierdo = map(vIzquierda, VALOR_MIN_CONTROL, VALOR_MAX_CONTROL, PULSO_REVERSA, PULSO_AVANCE);
+    pulsoDerecho   = map(vDerecha,   VALOR_MIN_CONTROL, VALOR_MAX_CONTROL, PULSO_REVERSA, PULSO_AVANCE);
+}
+
+void detenerMotores() {
+    pulsoIzquierdo = PULSO_NEUTRO;
+    pulsoDerecho   = PULSO_NEUTRO;
+}
+
+// ============================================================
+// ACTUALIZAR ESTADO DE LEDS
+// ============================================================
+void actualizarLEDs() {
+    digitalWrite(Led_Aut, Modo == 1 ? HIGH : LOW);
+    digitalWrite(Led_Man, Modo == 0 ? HIGH : LOW);
+
+    digitalWrite(Led_LoRaConect, Conexion == 1 ? HIGH : LOW);
+    digitalWrite(Led_LoRaunDesconect, Conexion == 0 ? HIGH : LOW);
+
+    digitalWrite(Led_NPKRead, Sensor_Estado == 1 ? HIGH : LOW);
+}
+
+// ============================================================
+// SENSOR NPK MODBUS ASÍNCRONO
+// ============================================================
+void iniciarLecturaNPK() {
+    if (solicitandoNPK) return;
+    solicitandoNPK = true;
+    Sensor_Estado = 1;
+    lecturasValidasNPK = 0;
+    sumaHum = 0; sumaTemp = 0; sumaEC = 0; sumaPH = 0;
+    sumaN = 0; sumaP = 0; sumaK = 0; sumaSal = 0; sumaTDS = 0;
+    ultimoMuestreoNPK = millis();
+}
+
+void atenderNPK() {
+    if (!solicitandoNPK) return;
+
+    if (millis() - ultimoMuestreoNPK >= 50) {
+        ultimoMuestreoNPK = millis();
+
+        uint8_t result = node.readHoldingRegisters(0x0000, 9);
+        if (result == node.ku8MBSuccess) {
+            sumaHum  += node.getResponseBuffer(0) / 10.0;
+            sumaTemp += node.getResponseBuffer(1) / 10.0;
+            sumaEC   += node.getResponseBuffer(2);
+            sumaPH   += node.getResponseBuffer(3) / 10.0;
+            sumaN    += node.getResponseBuffer(4);
+            sumaP    += node.getResponseBuffer(5);
+            sumaK    += node.getResponseBuffer(6);
+            sumaSal  += node.getResponseBuffer(7);
+            sumaTDS  += node.getResponseBuffer(8);
+            lecturasValidasNPK++;
+        }
+
+        if (lecturasValidasNPK >= 30) {
+            humedadProm     = sumaHum / 30.0;
+            temperaturaProm = sumaTemp / 30.0;
+            ecProm          = sumaEC / 30.0;
+            phProm          = sumaPH / 30.0;
+            nitrogenoProm   = sumaN / 30.0;
+            fosforoProm     = sumaP / 30.0;
+            potasioProm     = sumaK / 30.0;
+            salinidadProm   = sumaSal / 30.0;
+            tdsProm         = sumaTDS / 30.0;
+
+            Sensor_Estado = 0;
+            solicitandoNPK = false;
+        }
+    }
+}
+
