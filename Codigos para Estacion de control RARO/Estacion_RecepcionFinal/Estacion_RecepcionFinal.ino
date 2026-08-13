@@ -135,7 +135,7 @@ bool frameActivo = false;
 
 //Logica de modo (o: Mabnual, 1: Autonomo);
 int Modo = 0;
-int prevMiscBit = 0;
+int prevMisc = 0;
 
 
 //Lectura serial recibida
@@ -294,7 +294,7 @@ void procesarMensajeLora(String mensaje) {
     }
     datos[indice] = mensaje.substring(inicio);
 
-    if (indice < 23) return; // Asegurar que recibimos la trama completa
+    if (indice < 22) return; // Asegurar que recibimos la trama completa
 
     McLoRa     = datos[0];
     Contador   = datos[1].toInt();
@@ -322,25 +322,46 @@ void procesarMensajeLora(String mensaje) {
 
     ultimoComandoLoRa = millis();
 
-    // Enclavamiento (Toggle) para cambiar de modo al presionar el botón 'misc'
-    int currentMiscBit = (misc > 0 ) ? 1 : 0;
-    if (currentMiscBit == 1 && prevMiscBit == 0) {
+    // ============================================================
+    // PROCESAR COMANDOS MISC
+    // ============================================================
+
+    // misc == 1 -> Cambiar entre Manual y Autónomo
+    if (misc == 1 && prevMisc != 1) {
+
         Modo = (Modo == 0) ? 1 : 0;
+
         Serial.print("CAMBIO DE MODO A: ");
         Serial.println(Modo == 1 ? "AUTÓNOMO" : "MANUAL");
     }
-    prevMiscBit = currentMiscBit;
 
-    // Control de Motores
-    if (Modo == 0) { // Modo Manual: Responde al Joystick
-        controlarSabertooth(Lx, Ly);
-    } else {         // Modo Autónomo: Neutraliza motores
-        detenerMotores();
+
+    // misc == 2 -> Iniciar lectura del sensor NPK
+    if (misc == 2 && prevMisc != 2) {
+
+        Serial.println("INICIANDO LECTURA NPK");
+
+        iniciarLecturaNPK();
     }
 
-    if (misc==2){
-      iniciarLecturaNPK();
-      atenderNPK();
+
+    // Guardar estado anterior
+    prevMisc = misc;
+
+
+    // ============================================================
+    // CONTROL DE MOTORES
+    // ============================================================
+
+    if (Modo == 0) {
+
+        // Modo Manual
+        controlarSabertooth(Lx, Ly);
+
+    } else {
+
+        // Modo Autónomo
+        detenerMotores();
     }
 }
 
@@ -437,14 +458,14 @@ void atenderNPK() {
             salinidadProm   = sumaSal / 30.0;
             tdsProm         = sumaTDS / 30.0;
            Serial.print("Hum: "); Serial.print(humedadProm); Serial.print("% | ");
-Serial.print("Temp: "); Serial.print(temperaturaProm); Serial.print("C | ");
-Serial.print("EC: "); Serial.print(ecProm); Serial.print(" | ");
-Serial.print("pH: "); Serial.print(phProm); Serial.print(" | ");
-Serial.print("N: "); Serial.print(nitrogenoProm); Serial.print(" | ");
-Serial.print("P: "); Serial.print(fosforoProm); Serial.print(" | ");
-Serial.print("K: "); Serial.print(potasioProm); Serial.print(" | ");
-Serial.print("Sal: "); Serial.print(salinidadProm); Serial.print(" | ");
-Serial.print("TDS: "); Serial.println(tdsProm);
+           Serial.print("Temp: "); Serial.print(temperaturaProm); Serial.print("C | ");
+           Serial.print("EC: "); Serial.print(ecProm); Serial.print(" | ");
+           Serial.print("pH: "); Serial.print(phProm); Serial.print(" | ");
+            Serial.print("N: "); Serial.print(nitrogenoProm); Serial.print(" | ");
+            Serial.print("P: "); Serial.print(fosforoProm); Serial.print(" | ");
+            Serial.print("K: "); Serial.print(potasioProm); Serial.print(" | ");
+            Serial.print("Sal: "); Serial.print(salinidadProm); Serial.print(" | ");
+            Serial.print("TDS: "); Serial.println(tdsProm);
             Sensor_Estado = 0;
             solicitandoNPK = false;
         }
