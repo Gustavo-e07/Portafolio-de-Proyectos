@@ -133,7 +133,7 @@ bool frameActivo = false;
   int NSatelites = 0;
   float VelGPS = 0;
 
-//Logica de modo (o: Mabnual, 1: Autonomo);
+//Logica de modo (0: Manual, 1: Autonomo);
 int Modo = 0;
 int prevMisc = 0;
 
@@ -195,7 +195,7 @@ void setup() {
 
     // Inicializar NPK Modbus (UART2)
     SerialNPK.begin(9600, SERIAL_8N1, NPK_RX, NPK_TX);
-    delay(100);
+    delay(50);
     node.begin(1, SerialNPK);
 
     // Inicializar I2C
@@ -325,7 +325,6 @@ void procesarMensajeLora(String mensaje) {
     // ============================================================
     // PROCESAR COMANDOS MISC
     // ============================================================
-
     // misc == 1 -> Cambiar entre Manual y Autónomo
     if (misc == 1 && prevMisc != 1) {
 
@@ -339,7 +338,7 @@ void procesarMensajeLora(String mensaje) {
     // misc == 2 -> Iniciar lectura del sensor NPK
     if (misc == 2 && prevMisc != 2) {
 
-        Serial.println("INICIANDO LECTURA NPK");
+        Serial.print("INICIANDO LECTURA NPK");
 
         iniciarLecturaNPK();
     }
@@ -405,6 +404,51 @@ void actualizarLEDs() {
     digitalWrite(Led_LoRaunDesconect, Conexion == 0 ? HIGH : LOW);
 
     digitalWrite(Led_NPKRead, Sensor_Estado == 1 ? HIGH : LOW);
+    
+    Serial.print("Escucho a: ");
+    Serial.print(McLoRa);
+    Serial.print("Contador:");
+    Serial.print(Contador);
+    Serial.print("Conexion:");
+    Serial.print(Conexion);
+        Serial.print("a");
+    Serial.print(a);
+        Serial.print("b");
+    Serial.print(b);
+        Serial.print("x");
+    Serial.print(x);
+        Serial.print("y");
+    Serial.print(y);
+        Serial.print("L1");
+    Serial.print(L1);
+        Serial.print("R1");
+    Serial.print(R1);
+        Serial.print("dpad");
+    Serial.print(dpad);
+        Serial.print("buttons");
+    Serial.print(buttons);
+        Serial.print("Modo");
+    Serial.print(Modo);
+        Serial.print("estado sensor");
+    Serial.print(Sensor_Estado);
+        Serial.print("pulso izquierdo");
+    Serial.print(pulsoIzquierdo);
+        Serial.print("pulso derecho");
+    Serial.print(pulsoDerecho);
+        Serial.print("Rx");
+    Serial.print(Rx);
+        Serial.print("RY");
+    Serial.print(Ry);
+        Serial.print("latitud");
+    Serial.print(latitud);
+        Serial.print("longitud");
+    Serial.print(longitud);
+        Serial.print("altitud");
+    Serial.print(altitud);
+        Serial.print("satelites");
+    Serial.print(NSatelites);
+        Serial.print("velGPS");
+    Serial.println(VelGPS);
 }
 
 // ============================================================
@@ -471,4 +515,3 @@ void atenderNPK() {
         }
     }
 }
-
