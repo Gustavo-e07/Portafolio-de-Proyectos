@@ -8,6 +8,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SH110X.h>
 #include <ModbusMaster.h>
+#include <stdint.h>
 
 //============================================================
 //Declaracion de pines
@@ -156,6 +157,73 @@ int prevMisc = 0;
 
   int realizarMedicion = 0;
 
+//Paqute de datos
+struct __attribute__((packed)) DatosRobot {
+
+    // -------------------------
+    // Control LoRa
+    // -------------------------
+    uint16_t Contador;
+    uint8_t Conexion;
+
+    int16_t a;
+    int16_t b;
+    int16_t x;
+    int16_t y;
+
+    int16_t L1;
+    int16_t R1;
+    int16_t dpad;
+    uint16_t buttons;
+
+    uint8_t misc;
+
+    int16_t Lx;
+    int16_t Ly;
+    int16_t Rx;
+    int16_t Ry;
+
+    int16_t L2;
+    int16_t R2;
+
+    // -------------------------
+    // GPS
+    // -------------------------
+    float latitud;
+    float longitud;
+    float altitud;
+
+    uint8_t NSatelites;
+    float VelGPS;
+
+    // -------------------------
+    // Estado
+    // -------------------------
+    uint8_t Modo;
+    uint8_t Sensor_Estado;
+
+    uint16_t pulsoIzquierdo;
+    uint16_t pulsoDerecho;
+
+    // -------------------------
+    // Sensores NPK
+    // -------------------------
+    float humedad;
+    float temperatura;
+    float ec;
+    float ph;
+    float nitrogeno;
+    float fosforo;
+    float potasio;
+    float salinidad;
+    float tds;
+
+    // -------------------------
+    // Amperímetro
+    // -------------------------
+    float amperaje;
+};
+
 // ============================================================
 // PROTOTIPOS
 // ============================================================
@@ -231,6 +299,67 @@ void loop() {
     actualizarLEDs();
  
 }
+
+void prepararDatos(DatosRobot &datos) {
+
+    datos.Contador = Contador;
+    datos.Conexion = Conexion;
+
+    datos.a = a;
+    datos.b = b;
+    datos.x = x;
+    datos.y = y;
+
+    datos.L1 = L1;
+    datos.R1 = R1;
+    datos.dpad = dpad;
+    datos.buttons = buttons;
+
+    datos.misc = misc;
+
+    datos.Lx = Lx;
+    datos.Ly = Ly;
+    datos.Rx = Rx;
+    datos.Ry = Ry;
+
+    datos.L2 = L2;
+    datos.R2 = R2;
+
+    datos.latitud = latitud;
+    datos.longitud = longitud;
+    datos.altitud = altitud;
+
+    datos.NSatelites = NSatelites;
+    datos.VelGPS = VelGPS;
+
+    datos.Modo = Modo;
+    datos.Sensor_Estado = Sensor_Estado;
+
+    datos.pulsoIzquierdo = pulsoIzquierdo;
+    datos.pulsoDerecho = pulsoDerecho;
+
+    datos.humedad = humedadProm;
+    datos.temperatura = temperaturaProm;
+    datos.ec = ecProm;
+    datos.ph = phProm;
+    datos.nitrogeno = nitrogenoProm;
+    datos.fosforo = fosforoProm;
+    datos.potasio = potasioProm;
+    datos.salinidad = salinidadProm;
+    datos.tds = tdsProm;
+
+    datos.amperaje = AmpProm;
+}
+
+void enviarDatos() {
+
+    DatosRobot datos;
+
+    prepararDatos(datos);
+
+    Serial.write((uint8_t*)&datos, sizeof(datos));
+}
+
 // ============================================================
 // GENERADOR RC NO BLOQUEANTE (50 Hz por Software)
 // ============================================================
@@ -405,50 +534,94 @@ void actualizarLEDs() {
 
     digitalWrite(Led_NPKRead, Sensor_Estado == 1 ? HIGH : LOW);
     
-    Serial.print("Escucho a: ");
+        Serial.print("Escucho a: ");
     Serial.print(McLoRa);
-    Serial.print("Contador:");
+        Serial.print(" Contador:");
     Serial.print(Contador);
-    Serial.print("Conexion:");
+        Serial.print(" Conexion:");
     Serial.print(Conexion);
-        Serial.print("a");
+        Serial.print(" a");
     Serial.print(a);
-        Serial.print("b");
+        Serial.print(" b");
     Serial.print(b);
-        Serial.print("x");
+        Serial.print(" x");
     Serial.print(x);
-        Serial.print("y");
+        Serial.print(" y");
     Serial.print(y);
-        Serial.print("L1");
+        Serial.print(" L1");
     Serial.print(L1);
-        Serial.print("R1");
+        Serial.print(" R1");
     Serial.print(R1);
-        Serial.print("dpad");
+        Serial.print(" dpad");
     Serial.print(dpad);
-        Serial.print("buttons");
+        Serial.print(" buttons");
     Serial.print(buttons);
-        Serial.print("Modo");
+        Serial.print(" Modo");
     Serial.print(Modo);
-        Serial.print("estado sensor");
+        Serial.print(" estado sensor");
     Serial.print(Sensor_Estado);
-        Serial.print("pulso izquierdo");
+        Serial.print(" pulso izquierdo");
     Serial.print(pulsoIzquierdo);
-        Serial.print("pulso derecho");
+        Serial.print(" pulso derecho");
     Serial.print(pulsoDerecho);
-        Serial.print("Rx");
+        Serial.print(" Rx");
     Serial.print(Rx);
-        Serial.print("RY");
+        Serial.print(" RY");
     Serial.print(Ry);
-        Serial.print("latitud");
+        Serial.print(" latitud");
     Serial.print(latitud);
-        Serial.print("longitud");
+        Serial.print(" longitud");
     Serial.print(longitud);
-        Serial.print("altitud");
+        Serial.print(" altitud");
     Serial.print(altitud);
-        Serial.print("satelites");
+        Serial.print(" satelites");
     Serial.print(NSatelites);
-        Serial.print("velGPS");
+        Serial.print(" velGPS");
     Serial.println(VelGPS);
+        Serial.print(" N");
+    Serial.print("Humedad: ");
+        Serial.print(humedadProm, 2);
+    Serial.println(" %");
+
+    Serial.print("Temperatura: ");
+        Serial.print(temperaturaProm, 2);
+    Serial.println(" °C");
+
+    Serial.print("EC: ");
+        Serial.print(ecProm, 2);
+    Serial.println();
+
+    Serial.print("pH: ");
+        Serial.print(phProm, 2);
+    Serial.println();
+
+    Serial.print("Nitrogeno: ");
+        Serial.print(nitrogenoProm, 2);
+    Serial.println();
+
+    Serial.print("Fosforo: ");
+        Serial.print(fosforoProm, 2);
+    Serial.println();
+
+    Serial.print("Potasio: ");
+        Serial.print(potasioProm, 2);
+    Serial.println();
+
+    Serial.print("Salinidad: ");
+        Serial.print(salinidadProm, 2);
+    Serial.println();
+
+    Serial.print("TDS: ");
+    Serial.print(tdsProm, 2);
+    Serial.println(" ppm");
+
+    Serial.print("Amperaje: ");
+    Serial.print(AmpProm, 2);
+    Serial.println(" A");
+
+    Serial.println("----------------------");
+    
+
 }
 
 // ============================================================
@@ -515,3 +688,7 @@ void atenderNPK() {
         }
     }
 }
+
+
+
+
