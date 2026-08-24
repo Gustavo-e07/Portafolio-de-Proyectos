@@ -688,7 +688,3 @@ void atenderNPK() {
         }
     }
 }
-
-
-
-
