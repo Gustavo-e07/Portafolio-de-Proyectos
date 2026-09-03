@@ -1,8 +1,7 @@
-
 /*
  ============================================================
-  GPS + TEMPERATURA + IMU + SABERTOOTH + 2 SERVOS
-  Plataforma: ESP32
+   ESP32 + SIM808 GPS + MPU9250/MPU6500 + TEMPERATURA
+   + SABERTOOTH + 2 SERVOS
  ============================================================
 
  RECIBE POR SERIAL:
@@ -10,36 +9,48 @@
  MotorIzq,MotorDer,Servo1,Servo2,Boton
 
  Ejemplo:
+
  1500,1500,90,120,0
 
 
  MOTORES SABERTOOTH:
+
  1000 = reversa máxima
  1500 = detenido
  2000 = avance máximo
 
 
  SERVOS:
- 0 a 180 grados
 
-
- BOTÓN:
- 0 = servos siguen los valores recibidos
- 1 = guardar posición actual de los servos
-     y mantenerla fija
+ 0 - 180 grados
 
 
  ENVÍA POR SERIAL:
 
- latitud,longitud,altitud,satelites,velocidad,
- temperatura,ax,ay,az,gx,gy,gz
+ latitud,
+ longitud,
+ altitud,
+ satelites,
+ velocidad,
+ temperatura,
+ ax,
+ ay,
+ az,
+ gx,
+ gy,
+ gz,
+ mx,
+ my,
+ mz
+
+ Total: 15 valores
  ============================================================
 */
 
+
 #include <TinyGPSPlus.h>
 #include <Wire.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
+#include <MPU9250_asukiaaa.h>
 #include <ESP32Servo.h>
 
 
@@ -47,7 +58,7 @@
 // PINES
 // ============================================================
 
-// GPS
+// SIM808 GPS
 #define GPS_RX 8
 #define GPS_TX 9
 
@@ -62,7 +73,7 @@
 #define SERVO_1_PIN 5
 #define SERVO_2_PIN 6
 
-// IMU I2C
+// MPU9250 I2C
 #define SDA_IMU 4
 #define SCL_IMU 3
 
@@ -71,21 +82,29 @@
 // OBJETOS
 // ============================================================
 
+// GPS
 TinyGPSPlus gps;
 
+// UART 2 para SIM808
 HardwareSerial GPSserial(2);
 
-Adafruit_MPU6050 mpu;
 
+// MPU9250
+MPU9250_asukiaaa imu;
+
+
+// Sabertooth
 Servo MotorIzq;
 Servo MotorDer;
 
+
+// Servos
 Servo Servo1;
 Servo Servo2;
 
 
 // ============================================================
-// MOTORES
+// VARIABLES DE MOTORES
 // ============================================================
 
 int valorMotorIzq = 1500;
@@ -93,26 +112,18 @@ int valorMotorDer = 1500;
 
 
 // ============================================================
-// SERVOS
+// VARIABLES SERVOS
 // ============================================================
 
-// Valores recibidos
-int servo1Recibido = 90;
-int servo2Recibido = 90;
+int valorServo1 = 90;
+int valorServo2 = 90;
 
-// Posición actualmente aplicada
-int posicionServo1 = 90;
-int posicionServo2 = 90;
 
-// Posición guardada cuando se presiona el botón
-int posicionGuardadaServo1 = 90;
-int posicionGuardadaServo2 = 90;
+// ============================================================
+// BOTÓN
+// ============================================================
 
-// Estado de bloqueo
-bool servosBloqueados = false;
-
-// Estado anterior del botón
-int botonAnterior = 0;
+int valorBoton = 0;
 
 
 // ============================================================
@@ -127,12 +138,18 @@ String tramaEntrada = "";
 // ============================================================
 
 unsigned long tiempoAnteriorEnvio = 0;
+
 unsigned long ultimoComandoMotores = 0;
+
+
+// Envío de sensores:
+// 200 ms = 5 Hz
 
 const unsigned long INTERVALO_ENVIO = 200;
 
-// Seguridad:
-// detener motores si pasan 500 ms sin recibir comandos
+
+// Watchdog motores
+
 const unsigned long TIMEOUT_MOTORES = 500;
 
 
@@ -142,16 +159,17 @@ const unsigned long TIMEOUT_MOTORES = 500;
 
 void setup()
 {
-    // --------------------------------------------------------
-    // Serial principal
-    // --------------------------------------------------------
+    // ========================================================
+    // SERIAL PRINCIPAL
+    // Comunicación con ROS 2
+    // ========================================================
 
     Serial.begin(115200);
 
 
-    // --------------------------------------------------------
-    // GPS
-    // --------------------------------------------------------
+    // ========================================================
+    // SIM808 GPS
+    // ========================================================
 
     GPSserial.begin(
         9600,
@@ -161,48 +179,58 @@ void setup()
     );
 
 
-    // --------------------------------------------------------
-    // Temperatura analógica
-    // --------------------------------------------------------
+    // ========================================================
+    // SENSOR ANALÓGICO TEMPERATURA
+    // ========================================================
 
-    pinMode(TEMP_PIN, INPUT);
+    pinMode(
+        TEMP_PIN,
+        INPUT
+    );
+
 
     analogReadResolution(12);
 
 
-    // --------------------------------------------------------
-    // IMU
-    // --------------------------------------------------------
+    // ========================================================
+    // I2C MPU9250
+    // ========================================================
 
-    Wire.begin(SDA_IMU, SCL_IMU);
-
-    if (!mpu.begin())
-    {
-        Serial.println("ERROR_IMU");
-
-        while (1)
-        {
-            delay(100);
-        }
-    }
-
-
-    mpu.setAccelerometerRange(
-        MPU6050_RANGE_8_G
+    Wire.begin(
+        SDA_IMU,
+        SCL_IMU
     );
 
-    mpu.setGyroRange(
-        MPU6050_RANGE_500_DEG
-    );
 
-    mpu.setFilterBandwidth(
-        MPU6050_BAND_21_HZ
+    imu.setWire(
+        &Wire
     );
 
 
     // --------------------------------------------------------
-    // Configuración PWM
+    // Inicializar acelerómetro
     // --------------------------------------------------------
+
+    imu.beginAccel();
+
+
+    // --------------------------------------------------------
+    // Inicializar giroscopio
+    // --------------------------------------------------------
+
+    imu.beginGyro();
+
+
+    // --------------------------------------------------------
+    // Inicializar magnetómetro
+    // --------------------------------------------------------
+
+    imu.beginMag();
+
+
+    // ========================================================
+    // PWM
+    // ========================================================
 
     MotorIzq.setPeriodHertz(50);
     MotorDer.setPeriodHertz(50);
@@ -211,15 +239,16 @@ void setup()
     Servo2.setPeriodHertz(50);
 
 
-    // --------------------------------------------------------
-    // Sabertooth
-    // --------------------------------------------------------
+    // ========================================================
+    // SABERTOOTH
+    // ========================================================
 
     MotorIzq.attach(
         MOTOR_IZQ_PIN,
         1000,
         2000
     );
+
 
     MotorDer.attach(
         MOTOR_DER_PIN,
@@ -228,15 +257,16 @@ void setup()
     );
 
 
-    // --------------------------------------------------------
-    // Servos
-    // --------------------------------------------------------
+    // ========================================================
+    // SERVOS
+    // ========================================================
 
     Servo1.attach(
         SERVO_1_PIN,
         500,
         2500
     );
+
 
     Servo2.attach(
         SERVO_2_PIN,
@@ -245,21 +275,34 @@ void setup()
     );
 
 
-    // --------------------------------------------------------
-    // Estado inicial
-    // --------------------------------------------------------
+    // ========================================================
+    // ESTADO INICIAL
+    // ========================================================
 
     // Motores detenidos
-    MotorIzq.writeMicroseconds(1500);
-    MotorDer.writeMicroseconds(1500);
+
+    MotorIzq.writeMicroseconds(
+        1500
+    );
+
+    MotorDer.writeMicroseconds(
+        1500
+    );
 
 
-    // Servos al centro
-    Servo1.write(90);
-    Servo2.write(90);
+    // Servos centrados
+
+    Servo1.write(
+        90
+    );
+
+    Servo2.write(
+        90
+    );
 
 
-    ultimoComandoMotores = millis();
+    ultimoComandoMotores =
+        millis();
 
 
     delay(1000);
@@ -272,15 +315,15 @@ void setup()
 
 void loop()
 {
-    // Leer GPS continuamente
+    // Leer continuamente GPS
     leerGPS();
 
 
-    // Recibir comandos
+    // Recibir comandos desde ROS 2
     leerComandoSerial();
 
 
-    // Seguridad de los motores
+    // Watchdog motores
     verificarTimeoutMotores();
 
 
@@ -290,7 +333,8 @@ void loop()
         >= INTERVALO_ENVIO
     )
     {
-        tiempoAnteriorEnvio = millis();
+        tiempoAnteriorEnvio =
+            millis();
 
         enviarSensores();
     }
@@ -298,45 +342,77 @@ void loop()
 
 
 // ============================================================
-// GPS
+// LEER GPS SIM808
 // ============================================================
 
 void leerGPS()
 {
-    while (GPSserial.available())
+    while (
+        GPSserial.available()
+    )
     {
-        char c = GPSserial.read();
+        char c =
+            GPSserial.read();
 
-        gps.encode(c);
+
+        gps.encode(
+            c
+        );
     }
 }
 
 
 // ============================================================
-// RECIBIR SERIAL
+// LEER SERIAL DESDE ROS 2
 // ============================================================
 
 void leerComandoSerial()
 {
-    while (Serial.available())
+    while (
+        Serial.available()
+    )
     {
-        char c = Serial.read();
+        char c =
+            Serial.read();
 
 
-        // Nueva línea = fin de trama
+        // ----------------------------------------------------
+        // Fin de trama
+        // ----------------------------------------------------
+
         if (c == '\n')
         {
-            procesarComando(
-                tramaEntrada
-            );
+            if (
+                tramaEntrada.length() > 0
+            )
+            {
+                procesarComando(
+                    tramaEntrada
+                );
+            }
+
 
             tramaEntrada = "";
         }
 
+
+        // ----------------------------------------------------
         // Ignorar retorno de carro
+        // ----------------------------------------------------
+
         else if (c != '\r')
         {
             tramaEntrada += c;
+
+
+            // Protección contra basura serial
+
+            if (
+                tramaEntrada.length() > 100
+            )
+            {
+                tramaEntrada = "";
+            }
         }
     }
 }
@@ -346,44 +422,54 @@ void leerComandoSerial()
 // PROCESAR COMANDO
 // ============================================================
 
-void procesarComando(String mensaje)
+void procesarComando(
+    String mensaje
+)
 {
     /*
-     Trama esperada:
+       Trama:
 
-     MotorIzq,MotorDer,Servo1,Servo2,Boton
+       MotorIzq,MotorDer,Servo1,Servo2,Boton
 
-     Ejemplo:
 
-     1500,1500,90,120,0
+       Ejemplo:
+
+       1500,1500,90,120,0
     */
 
 
-    // --------------------------------------------------------
-    // Buscar comas
-    // --------------------------------------------------------
+    // ========================================================
+    // BUSCAR COMAS
+    // ========================================================
 
-    int coma1 = mensaje.indexOf(',');
-
-    int coma2 = mensaje.indexOf(
-        ',',
-        coma1 + 1
-    );
-
-    int coma3 = mensaje.indexOf(
-        ',',
-        coma2 + 1
-    );
-
-    int coma4 = mensaje.indexOf(
-        ',',
-        coma3 + 1
-    );
+    int coma1 =
+        mensaje.indexOf(',');
 
 
-    // --------------------------------------------------------
-    // Comprobar trama
-    // --------------------------------------------------------
+    int coma2 =
+        mensaje.indexOf(
+            ',',
+            coma1 + 1
+        );
+
+
+    int coma3 =
+        mensaje.indexOf(
+            ',',
+            coma2 + 1
+        );
+
+
+    int coma4 =
+        mensaje.indexOf(
+            ',',
+            coma3 + 1
+        );
+
+
+    // ========================================================
+    // VALIDAR TRAMA
+    // ========================================================
 
     if (
         coma1 == -1 ||
@@ -396,9 +482,9 @@ void procesarComando(String mensaje)
     }
 
 
-    // --------------------------------------------------------
-    // Extraer datos
-    // --------------------------------------------------------
+    // ========================================================
+    // EXTRAER DATOS
+    // ========================================================
 
     int nuevoMotorIzq =
         mensaje.substring(
@@ -428,14 +514,52 @@ void procesarComando(String mensaje)
         ).toInt();
 
 
-    int boton =
+    int nuevoBoton =
         mensaje.substring(
             coma4 + 1
         ).toInt();
 
 
     // ========================================================
-    // CONTROL DE MOTORES
+    // MOTOR IZQUIERDO
+    // ========================================================
+
+    if (
+        nuevoMotorIzq >= 1000 &&
+        nuevoMotorIzq <= 2000
+    )
+    {
+        valorMotorIzq =
+            nuevoMotorIzq;
+
+
+        MotorIzq.writeMicroseconds(
+            valorMotorIzq
+        );
+    }
+
+
+    // ========================================================
+    // MOTOR DERECHO
+    // ========================================================
+
+    if (
+        nuevoMotorDer >= 1000 &&
+        nuevoMotorDer <= 2000
+    )
+    {
+        valorMotorDer =
+            nuevoMotorDer;
+
+
+        MotorDer.writeMicroseconds(
+            valorMotorDer
+        );
+    }
+
+
+    // ========================================================
+    // WATCHDOG
     // ========================================================
 
     if (
@@ -445,26 +569,13 @@ void procesarComando(String mensaje)
         nuevoMotorDer <= 2000
     )
     {
-        valorMotorIzq = nuevoMotorIzq;
-        valorMotorDer = nuevoMotorDer;
-
-
-        MotorIzq.writeMicroseconds(
-            valorMotorIzq
-        );
-
-        MotorDer.writeMicroseconds(
-            valorMotorDer
-        );
-
-
-        // Reiniciar watchdog
-        ultimoComandoMotores = millis();
+        ultimoComandoMotores =
+            millis();
     }
 
 
     // ========================================================
-    // GUARDAR VALORES RECIBIDOS DE LOS SERVOS
+    // SERVO 1
     // ========================================================
 
     if (
@@ -472,127 +583,52 @@ void procesarComando(String mensaje)
         nuevoServo1 <= 180
     )
     {
-        servo1Recibido =
+        valorServo1 =
             nuevoServo1;
+
+
+        Servo1.write(
+            valorServo1
+        );
     }
 
+
+    // ========================================================
+    // SERVO 2
+    // ========================================================
 
     if (
         nuevoServo2 >= 0 &&
         nuevoServo2 <= 180
     )
     {
-        servo2Recibido =
+        valorServo2 =
             nuevoServo2;
+
+
+        Servo2.write(
+            valorServo2
+        );
     }
 
 
     // ========================================================
-    // DETECTAR CUANDO SE PRESIONA EL BOTÓN
+    // BOTÓN
     // ========================================================
-
-    /*
-       Solamente guardamos la posición cuando ocurre
-       el cambio:
-
-       0 -> 1
-
-       Esto evita guardar repetidamente mientras
-       el botón permanece presionado.
-    */
 
     if (
-        boton == 1 &&
-        botonAnterior == 0
+        nuevoBoton == 0 ||
+        nuevoBoton == 1
     )
     {
-        // Guardar posición actual
-
-        posicionGuardadaServo1 =
-            posicionServo1;
-
-        posicionGuardadaServo2 =
-            posicionServo2;
-
-
-        // Activar bloqueo
-
-        servosBloqueados = true;
-    }
-
-
-    // ========================================================
-    // LIBERAR SERVOS
-    // ========================================================
-
-    /*
-       Cuando el botón vuelve a cero,
-       los servos vuelven a seguir los
-       valores recibidos.
-    */
-
-    if (boton == 0)
-    {
-        servosBloqueados = false;
-    }
-
-
-    // Guardar estado del botón
-    botonAnterior = boton;
-
-
-    // ========================================================
-    // CONTROL DE SERVOS
-    // ========================================================
-
-    if (!servosBloqueados)
-    {
-        // ---------------------------------------------
-        // Control normal
-        // ---------------------------------------------
-
-        posicionServo1 =
-            servo1Recibido;
-
-        posicionServo2 =
-            servo2Recibido;
-
-
-        Servo1.write(
-            posicionServo1
-        );
-
-        Servo2.write(
-            posicionServo2
-        );
-    }
-
-    else
-    {
-        // ---------------------------------------------
-        // Posición bloqueada
-        // ---------------------------------------------
-
-        posicionServo1 =
-            posicionGuardadaServo1;
-
-        posicionServo2 =
-            posicionGuardadaServo2;
-
-
-        Servo1.write(
-            posicionGuardadaServo1
-        );
-
-        Servo2.write(
-            posicionGuardadaServo2
-        );
+        valorBoton =
+            nuevoBoton;
     }
 }
 
 
 // ============================================================
-// SEGURIDAD MOTORES
+// WATCHDOG SABERTOOTH
 // ============================================================
 
 void verificarTimeoutMotores()
@@ -602,13 +638,17 @@ void verificarTimeoutMotores()
         > TIMEOUT_MOTORES
     )
     {
-        valorMotorIzq = 1500;
-        valorMotorDer = 1500;
+        valorMotorIzq =
+            1500;
+
+        valorMotorDer =
+            1500;
 
 
         MotorIzq.writeMicroseconds(
             1500
         );
+
 
         MotorDer.writeMicroseconds(
             1500
@@ -618,23 +658,32 @@ void verificarTimeoutMotores()
 
 
 // ============================================================
-// TEMPERATURA
+// TEMPERATURA ANALÓGICA
 // ============================================================
 
 float leerTemperatura()
 {
     int adc =
-        analogRead(TEMP_PIN);
+        analogRead(
+            TEMP_PIN
+        );
 
+
+    // ADC -> Voltaje
 
     float voltaje =
         adc * 3.3 / 4095.0;
 
 
     /*
-       Conversión de ejemplo para LM35:
+       TEMPORALMENTE:
+
+       Conversión tipo LM35:
 
        10 mV / °C
+
+       Si el sensor es otro,
+       cambiaremos esta ecuación.
     */
 
     float temperatura =
@@ -646,73 +695,158 @@ float leerTemperatura()
 
 
 // ============================================================
-// ENVIAR SENSORES
+// LEER Y ENVIAR SENSORES
 // ============================================================
 
 void enviarSensores()
 {
+    // ========================================================
+    // MPU9250
+    // ========================================================
+
     // --------------------------------------------------------
-    // IMU
+    // Leer acelerómetro
     // --------------------------------------------------------
 
-    sensors_event_t a;
-    sensors_event_t g;
-    sensors_event_t temperaturaIMU;
-
-
-    mpu.getEvent(
-        &a,
-        &g,
-        &temperaturaIMU
-    );
+    imu.accelUpdate();
 
 
     // --------------------------------------------------------
-    // Sensor temperatura
+    // Leer giroscopio
     // --------------------------------------------------------
+
+    imu.gyroUpdate();
+
+
+    // --------------------------------------------------------
+    // Leer magnetómetro
+    // --------------------------------------------------------
+
+    imu.magUpdate();
+
+
+    // ========================================================
+    // ACELERACIÓN
+    // ========================================================
+
+    float ax =
+        imu.accelX();
+
+    float ay =
+        imu.accelY();
+
+    float az =
+        imu.accelZ();
+
+
+    // ========================================================
+    // GIROSCOPIO
+    // ========================================================
+
+    float gx =
+        imu.gyroX();
+
+    float gy =
+        imu.gyroY();
+
+    float gz =
+        imu.gyroZ();
+
+
+    // ========================================================
+    // MAGNETÓMETRO
+    // ========================================================
+
+    float mx =
+        imu.magX();
+
+    float my =
+        imu.magY();
+
+    float mz =
+        imu.magZ();
+
+
+    // ========================================================
+    // TEMPERATURA
+    // ========================================================
 
     float temperatura =
         leerTemperatura();
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // GPS
+    // ========================================================
+
+    double latitud =
+        0.0;
+
+    double longitud =
+        0.0;
+
+
+    float altitud =
+        0.0;
+
+    float velocidad =
+        0.0;
+
+
+    int satelites =
+        0;
+
+
+    // --------------------------------------------------------
+    // Latitud y longitud
     // --------------------------------------------------------
 
-    double latitud = 0;
-    double longitud = 0;
-
-    float altitud = 0;
-    float velocidad = 0;
-
-    int satelites = 0;
-
-
-    if (gps.location.isValid())
+    if (
+        gps.location.isValid()
+    )
     {
         latitud =
             gps.location.lat();
+
 
         longitud =
             gps.location.lng();
     }
 
 
-    if (gps.altitude.isValid())
+    // --------------------------------------------------------
+    // Altitud
+    // --------------------------------------------------------
+
+    if (
+        gps.altitude.isValid()
+    )
     {
         altitud =
             gps.altitude.meters();
     }
 
 
-    if (gps.speed.isValid())
+    // --------------------------------------------------------
+    // Velocidad
+    // --------------------------------------------------------
+
+    if (
+        gps.speed.isValid()
+    )
     {
         velocidad =
             gps.speed.mps();
     }
 
 
-    if (gps.satellites.isValid())
+    // --------------------------------------------------------
+    // Satélites
+    // --------------------------------------------------------
+
+    if (
+        gps.satellites.isValid()
+    )
     {
         satelites =
             gps.satellites.value();
@@ -720,78 +854,173 @@ void enviarSensores()
 
 
     // ========================================================
-    // TRAMA DE SALIDA
+    // TRAMA SERIAL
     // ========================================================
 
-    Serial.print(latitud, 7);
-    Serial.print(",");
+    /*
+       ORDEN:
 
-    Serial.print(longitud, 7);
-    Serial.print(",");
+       1  Latitud
+       2  Longitud
+       3  Altitud
+       4  Satélites
+       5  Velocidad
+       6  Temperatura
 
-    Serial.print(altitud, 2);
-    Serial.print(",");
+       7  AX
+       8  AY
+       9  AZ
 
-    Serial.print(satelites);
-    Serial.print(",");
+       10 GX
+       11 GY
+       12 GZ
 
-    Serial.print(velocidad, 2);
-    Serial.print(",");
+       13 MX
+       14 MY
+       15 MZ
+    */
 
-    Serial.print(temperatura, 2);
-    Serial.print(",");
 
-
-    // --------------------------------------------------------
-    // Acelerómetro
-    // --------------------------------------------------------
-
+    // 1 Latitud
     Serial.print(
-        a.acceleration.x,
+        latitud,
+        7
+    );
+
+    Serial.print(",");
+
+
+    // 2 Longitud
+    Serial.print(
+        longitud,
+        7
+    );
+
+    Serial.print(",");
+
+
+    // 3 Altitud
+    Serial.print(
+        altitud,
+        2
+    );
+
+    Serial.print(",");
+
+
+    // 4 Satélites
+    Serial.print(
+        satelites
+    );
+
+    Serial.print(",");
+
+
+    // 5 Velocidad
+    Serial.print(
+        velocidad,
+        2
+    );
+
+    Serial.print(",");
+
+
+    // 6 Temperatura
+    Serial.print(
+        temperatura,
+        2
+    );
+
+    Serial.print(",");
+
+
+    // ========================================================
+    // ACELERÓMETRO
+    // ========================================================
+
+    // 7 AX
+    Serial.print(
+        ax,
         3
     );
 
     Serial.print(",");
 
 
+    // 8 AY
     Serial.print(
-        a.acceleration.y,
+        ay,
         3
     );
 
     Serial.print(",");
 
 
+    // 9 AZ
     Serial.print(
-        a.acceleration.z,
+        az,
         3
     );
 
     Serial.print(",");
 
 
-    // --------------------------------------------------------
-    // Giroscopio
-    // --------------------------------------------------------
+    // ========================================================
+    // GIROSCOPIO
+    // ========================================================
 
+    // 10 GX
     Serial.print(
-        g.gyro.x,
+        gx,
         3
     );
 
     Serial.print(",");
 
 
+    // 11 GY
     Serial.print(
-        g.gyro.y,
+        gy,
         3
     );
 
     Serial.print(",");
 
 
+    // 12 GZ
+    Serial.print(
+        gz,
+        3
+    );
+
+    Serial.print(",");
+
+
+    // ========================================================
+    // MAGNETÓMETRO
+    // ========================================================
+
+    // 13 MX
+    Serial.print(
+        mx,
+        3
+    );
+
+    Serial.print(",");
+
+
+    // 14 MY
+    Serial.print(
+        my,
+        3
+    );
+
+    Serial.print(",");
+
+
+    // 15 MZ
     Serial.println(
-        g.gyro.z,
+        mz,
         3
     );
 }
