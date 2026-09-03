@@ -2,6 +2,17 @@
 //Librerias
 //============================================================
 #include <Arduino.h>
+Filtre su búsqueda...
+Tipo:
+
+Todo
+Tema:
+
+Todo
+
+
+
+
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 #include <SPI.h>
@@ -534,11 +545,11 @@ void actualizarLEDs() {
 
     digitalWrite(Led_NPKRead, Sensor_Estado == 1 ? HIGH : LOW);
     
-        Serial.print("Escucho a: ");
+ //       Serial.print("Escucho a: ");
     Serial.print(McLoRa);
-        Serial.print(" Contador:");
-    Serial.print(Contador);
-        Serial.print(" Conexion:");
+ //       Serial.print(" Contador:");
+//    Serial.print(Contador);
+//        Serial.print(" Conexion:");
     Serial.print(Conexion);
         Serial.print(" a");
     Serial.print(a);
